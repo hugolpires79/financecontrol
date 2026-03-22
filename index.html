@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Pro - Mensal & Parcelado</title>
-    <!-- Tailwind CSS para o design -->
+    <title>Finanças Pro - Controle Total</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         [x-cloak] { display: none !important; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .status-badge { transition: all 0.2s; cursor: pointer; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans antialiased" x-data="financeApp()" x-init="init()">
 
     <div class="max-w-5xl mx-auto p-4 md:p-8 space-y-6" x-cloak>
         
-        <!-- SELETOR DE MÊS E ANO -->
+        <!-- CABEÇALHO -->
         <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
             <div class="flex items-center gap-3">
                 <div class="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg shadow-indigo-200">
@@ -25,13 +25,16 @@
                 </div>
                 <div>
                     <h1 class="text-2xl font-black text-slate-800 tracking-tight italic">FINANÇAS PRO</h1>
-                    <div class="text-indigo-600 font-bold text-sm">
-                        Controle Mensal & Parcelamentos
+                    <div class="text-indigo-600 font-bold text-sm flex items-center gap-2">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                        </span>
+                        Status & Recorrência Ativos
                     </div>
                 </div>
             </div>
 
-            <!-- Botão de Navegação entre Meses -->
             <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
                 <button @click="changeMonth(-1)" class="p-2 hover:bg-white rounded-xl transition-all text-slate-600 hover:text-indigo-600">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
@@ -45,31 +48,35 @@
             </div>
         </header>
 
-        <!-- RESUMO DO MÊS SELECIONADO -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Receitas em <span x-text="getMonthName(currentMonth)"></span></p>
-                <h2 class="text-2xl font-black text-green-600" x-text="formatCurrency(totals.income)"></h2>
+        <!-- DASHBOARD RESUMO -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Receitas</p>
+                <h2 class="text-xl font-black text-green-600" x-text="formatCurrency(totals.income)"></h2>
             </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Despesas em <span x-text="getMonthName(currentMonth)"></span></p>
-                <h2 class="text-2xl font-black text-red-600" x-text="formatCurrency(totals.expenses)"></h2>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Despesas</p>
+                <h2 class="text-xl font-black text-red-600" x-text="formatCurrency(totals.expenses)"></h2>
             </div>
-            <div class="p-6 rounded-2xl shadow-sm border transition-colors" :class="totals.balance >= 0 ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-red-600 border-red-500 text-white'">
-                <p class="text-[10px] font-bold uppercase tracking-widest mb-1 opacity-80">Saldo Final</p>
-                <h2 class="text-2xl font-black" x-text="formatCurrency(totals.balance)"></h2>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pago (Mês)</p>
+                <h2 class="text-xl font-black text-blue-600" x-text="formatCurrency(totals.paid)"></h2>
+            </div>
+            <div class="p-5 rounded-2xl shadow-sm border transition-colors" :class="totals.balance >= 0 ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-red-600 border-red-500 text-white'">
+                <p class="text-[10px] font-bold uppercase tracking-widest mb-1 opacity-80">Saldo</p>
+                <h2 class="text-xl font-black" x-text="formatCurrency(totals.balance)"></h2>
             </div>
         </div>
 
-        <!-- NOVO LANÇAMENTO (COM PARCELAS) -->
+        <!-- FORMULÁRIO -->
         <section class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
             <h3 class="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                Adicionar Transação
+                Novo Lançamento
             </h3>
             <form @submit.prevent="saveEntry()" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 <div class="lg:col-span-2">
-                    <input type="text" x-model="form.description" placeholder="Ex: Compra Notebook" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" x-model="form.description" placeholder="Ex: Internet, Aluguel..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <input type="number" step="0.01" x-model="form.amount" placeholder="Valor R$" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
@@ -77,43 +84,47 @@
                 <div>
                     <select x-model="form.category" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="income">Receita</option>
-                        <option value="fixed">Fixo (Mês a Mês)</option>
+                        <option value="fixed">Conta Fixa (Recorrente)</option>
                         <option value="variable">Variável</option>
                         <option value="credit">Cartão de Crédito</option>
                     </select>
                 </div>
                 <div>
-                    <select x-model="form.installments" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select x-model="form.installments" :disabled="form.category === 'fixed'" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
                         <option value="1">À vista</option>
                         <template x-for="i in 23">
                             <option :value="i+1" x-text="(i+1) + ' Parcelas'"></option>
                         </template>
                     </select>
                 </div>
-                <button type="submit" class="bg-indigo-600 text-white font-bold py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
+                <button type="submit" class="bg-indigo-600 text-white font-bold py-2.5 rounded-xl hover:bg-indigo-700 transition-colors">
                     Lançar
                 </button>
             </form>
         </section>
 
-        <!-- LISTAGEM DETALHADA DO MÊS -->
+        <!-- LISTAGEM -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            <!-- COLUNA DE RECEITAS -->
+            <!-- RECEITAS -->
             <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
                 <div class="p-4 bg-green-50 border-b border-green-100 flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-green-700 uppercase tracking-widest">Receitas de <span x-text="getMonthName(currentMonth)"></span></h3>
+                    <h3 class="text-xs font-bold text-green-700 uppercase tracking-widest">Receitas</h3>
                 </div>
-                <div class="p-2 space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
+                <div class="p-2 space-y-1">
                     <template x-for="item in filteredEntries.filter(e => e.category === 'income')" :key="item.id">
-                        <div class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl group transition-all border border-transparent">
+                        <div class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl group transition-all">
                             <div class="flex flex-col">
                                 <span class="text-sm font-bold text-slate-700" x-text="item.description"></span>
-                                <span x-show="item.totalInstallments > 1" class="text-[10px] font-bold text-indigo-500 uppercase" x-text="'Parcela ' + item.currentInstallment + '/' + item.totalInstallments"></span>
+                                <span class="text-[10px] font-bold text-slate-400 uppercase" x-text="item.category"></span>
                             </div>
-                            <div class="flex items-center gap-4">
+                            <div class="flex items-center gap-3">
                                 <span class="text-sm font-black text-green-600" x-text="formatCurrency(item.amount)"></span>
-                                <button @click="deleteEntry(item)" class="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                <button @click="toggleStatus(item)" class="status-badge p-1.5 rounded-lg" :class="getStatusClass(item.status)">
+                                    <svg x-show="item.status === 'pago'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <svg x-show="item.status === 'aberto'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/></svg>
+                                </button>
+                                <button @click="deleteEntry(item)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
                             </div>
@@ -122,24 +133,39 @@
                 </div>
             </div>
 
-            <!-- COLUNA DE DESPESAS -->
+            <!-- DESPESAS -->
             <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
                 <div class="p-4 bg-red-50 border-b border-red-100 flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-red-700 uppercase tracking-widest">Despesas de <span x-text="getMonthName(currentMonth)"></span></h3>
+                    <h3 class="text-xs font-bold text-red-700 uppercase tracking-widest">Despesas</h3>
                 </div>
-                <div class="p-2 space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
+                <div class="p-2 space-y-1">
                     <template x-for="item in filteredEntries.filter(e => e.category !== 'income')" :key="item.id">
-                        <div class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl group transition-all border border-transparent">
-                            <div class="flex flex-col">
+                        <div class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl group transition-all">
+                            <div class="flex flex-col flex-1">
                                 <div class="flex items-center gap-2">
                                     <div class="w-1.5 h-1.5 rounded-full" :class="getCategoryColor(item.category)"></div>
                                     <span class="text-sm font-bold text-slate-700" x-text="item.description"></span>
                                 </div>
-                                <span x-show="item.totalInstallments > 1" class="text-[10px] font-bold text-indigo-500 uppercase ml-3.5" x-text="'Parcela ' + item.currentInstallment + '/' + item.totalInstallments"></span>
+                                <div class="flex items-center gap-2 mt-0.5">
+                                    <span x-show="item.totalInstallments > 1" class="text-[9px] font-black text-indigo-500 uppercase" x-text="'Parc. ' + item.currentInstallment + '/' + item.totalInstallments"></span>
+                                    <span x-show="item.category === 'fixed'" class="text-[9px] font-black text-orange-500 uppercase">Recorrente</span>
+                                </div>
                             </div>
-                            <div class="flex items-center gap-4">
-                                <span class="text-sm font-black text-red-600" x-text="formatCurrency(item.amount)"></span>
-                                <button @click="deleteEntry(item)" class="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                            
+                            <div class="flex items-center gap-3">
+                                <!-- Edição de Valor -->
+                                <div @click="editValue(item)" class="cursor-pointer hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors">
+                                    <span class="text-sm font-black text-slate-900" x-text="formatCurrency(item.amount)"></span>
+                                </div>
+
+                                <!-- Status Toggle -->
+                                <button @click="toggleStatus(item)" class="status-badge p-1.5 rounded-lg shadow-sm" :title="item.status" :class="getStatusClass(item.status)">
+                                    <svg x-show="item.status === 'pago'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <svg x-show="item.status === 'aberto'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/></svg>
+                                    <svg x-show="item.status === 'atrasado'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/><circle cx="12" cy="12" r="10"/></svg>
+                                </button>
+
+                                <button @click="deleteEntry(item)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
                             </div>
@@ -150,7 +176,7 @@
         </div>
 
         <footer class="text-center py-6">
-            <p class="text-[10px] font-bold text-slate-300 uppercase tracking-[0.3em]">Gestão Mensal v4.0 • LocalStorage</p>
+            <p class="text-[10px] font-bold text-slate-300 uppercase tracking-[0.3em]">Clique no valor para editar • Clique no ícone para pagar</p>
         </footer>
     </div>
 
@@ -170,78 +196,144 @@
                 init() {
                     this.entries = JSON.parse(localStorage.getItem('fin_v4_db')) || [];
                     this.$watch('entries', val => localStorage.setItem('fin_v4_db', JSON.stringify(val)));
+                    this.checkFixedEntries();
                 },
 
-                // Navegação
+                // Lógica de Contas Fixas: Garante que existam no mês atual
+                checkFixedEntries() {
+                    const fixedTemplates = this.entries.filter(e => e.category === 'fixed' && e.isTemplate);
+                    
+                    fixedTemplates.forEach(template => {
+                        const alreadyExists = this.entries.find(e => 
+                            e.templateId === template.id && 
+                            e.month === this.currentMonth && 
+                            e.year === this.currentYear
+                        );
+
+                        if (!alreadyExists) {
+                            this.entries.push({
+                                ...template,
+                                id: Date.now() + Math.random(),
+                                isTemplate: false,
+                                templateId: template.id,
+                                month: this.currentMonth,
+                                year: this.currentYear,
+                                status: 'aberto'
+                            });
+                        }
+                    });
+                },
+
                 changeMonth(diff) {
                     let d = new Date(this.currentYear, this.currentMonth + diff, 1);
                     this.currentMonth = d.getMonth();
                     this.currentYear = d.getFullYear();
+                    this.checkFixedEntries(); // Ao mudar de mês, verifica se as fixas precisam ser geradas
                 },
 
                 getMonthName(m) {
-                    return ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
-                            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][m];
+                    return ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][m];
                 },
 
-                // Filtro por Mês/Ano Corrente
                 get filteredEntries() {
-                    return this.entries.filter(e => e.month === this.currentMonth && e.year === this.currentYear);
+                    return this.entries.filter(e => !e.isTemplate && e.month === this.currentMonth && e.year === this.currentYear);
                 },
 
                 get totals() {
-                    const inc = this.filteredEntries.filter(e => e.category === 'income').reduce((a, b) => a + Number(b.amount), 0);
-                    const exp = this.filteredEntries.filter(e => e.category !== 'income').reduce((a, b) => a + Number(b.amount), 0);
-                    return { income: inc, expenses: exp, balance: inc - exp };
+                    const filtered = this.filteredEntries;
+                    const inc = filtered.filter(e => e.category === 'income').reduce((a, b) => a + Number(b.amount), 0);
+                    const exp = filtered.filter(e => e.category !== 'income').reduce((a, b) => a + Number(b.amount), 0);
+                    const paid = filtered.filter(e => e.status === 'pago' && e.category !== 'income').reduce((a, b) => a + Number(b.amount), 0);
+                    return { income: inc, expenses: exp, paid: paid, balance: inc - exp };
                 },
 
-                // Gravação com lógica de parcelas
                 saveEntry() {
                     if (!this.form.description || !this.form.amount) return;
 
-                    const numParcelas = parseInt(this.form.installments);
-                    const valorTotal = parseFloat(this.form.amount);
-                    const groupId = numParcelas > 1 ? Date.now() : null;
+                    const valor = parseFloat(this.form.amount);
+                    const cat = this.form.category;
 
-                    // Cria as entradas para os meses subsequentes
-                    for (let i = 0; i < numParcelas; i++) {
-                        let dataAlvo = new Date(this.currentYear, this.currentMonth + i, 1);
-                        
+                    if (cat === 'fixed') {
+                        // Cria o TEMPLATE (que não aparece na lista, serve de base)
+                        const templateId = Date.now();
                         this.entries.push({
-                            id: Date.now() + Math.random(),
-                            groupId: groupId,
+                            id: templateId,
+                            isTemplate: true,
                             description: this.form.description,
-                            amount: valorTotal, // Valor de cada parcela
-                            category: this.form.category,
-                            month: dataAlvo.getMonth(),
-                            year: dataAlvo.getFullYear(),
-                            currentInstallment: i + 1,
-                            totalInstallments: numParcelas
+                            amount: valor,
+                            category: 'fixed',
+                            status: 'aberto'
                         });
+                        this.checkFixedEntries();
+                    } else {
+                        // Lógica de Parcelas ou Simples
+                        const numParc = parseInt(this.form.installments);
+                        const groupId = numParc > 1 ? Date.now() : null;
+
+                        for (let i = 0; i < numParc; i++) {
+                            let d = new Date(this.currentYear, this.currentMonth + i, 1);
+                            this.entries.push({
+                                id: Date.now() + Math.random(),
+                                description: this.form.description,
+                                amount: valor,
+                                category: cat,
+                                month: d.getMonth(),
+                                year: d.getFullYear(),
+                                status: 'aberto',
+                                groupId: groupId,
+                                currentInstallment: i + 1,
+                                totalInstallments: numParc
+                            });
+                        }
                     }
 
-                    // Limpa o form
                     this.form.description = '';
                     this.form.amount = '';
                     this.form.installments = '1';
                 },
 
+                toggleStatus(item) {
+                    const states = ['aberto', 'pago', 'atrasado'];
+                    const nextIndex = (states.indexOf(item.status) + 1) % states.length;
+                    item.status = states[nextIndex];
+                    this.entries = [...this.entries]; // trigger reactivity
+                },
+
+                editValue(item) {
+                    const novoValor = prompt(`Editar valor de "${item.description}":`, item.amount);
+                    if (novoValor !== null && !isNaN(novoValor)) {
+                        item.amount = parseFloat(novoValor);
+                        this.entries = [...this.entries];
+                    }
+                },
+
                 deleteEntry(item) {
-                    // Se for parcelado, perguntamos se quer apagar tudo ou só esta
-                    if (item.groupId) {
-                        const confirmAll = confirm("Esta é uma conta parcelada. Deseja apagar TODAS as parcelas deste grupo?");
-                        if (confirmAll) {
-                            this.entries = this.entries.filter(e => e.groupId !== item.groupId);
+                    if (item.category === 'fixed' || item.templateId) {
+                        if (confirm("Deseja excluir esta conta fixa de TODOS os meses futuros?")) {
+                            const tid = item.templateId || item.id;
+                            this.entries = this.entries.filter(e => e.id !== tid && e.templateId !== tid);
                             return;
                         }
                     }
-                    // Se não for grupo ou cancelou apagar tudo, apaga apenas a individual
+                    
+                    if (item.groupId && confirm("Excluir todas as parcelas deste grupo?")) {
+                        this.entries = this.entries.filter(e => e.groupId !== item.groupId);
+                        return;
+                    }
+
                     this.entries = this.entries.filter(e => e.id !== item.id);
                 },
 
+                getStatusClass(s) {
+                    return {
+                        pago: 'bg-green-100 text-green-600 border border-green-200',
+                        aberto: 'bg-slate-100 text-slate-400 border border-slate-200',
+                        atrasado: 'bg-red-100 text-red-600 border border-red-200'
+                    }[s];
+                },
+
                 getCategoryColor(c) {
-                    const colors = { fixed: 'bg-orange-400', variable: 'bg-red-400', credit: 'bg-indigo-400' };
-                    return colors[c] || 'bg-slate-300';
+                    return { fixed: 'bg-orange-400', variable: 'bg-red-400', credit: 'bg-indigo-400' }[c];
                 },
 
                 formatCurrency(v) {
@@ -250,7 +342,6 @@
             }
         }
     </script>
-    <!-- Alpine JS como framework de lógica -->
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </body>
 </html>
