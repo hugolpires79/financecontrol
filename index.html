@@ -6,8 +6,6 @@
     <title>Meu Gestor Financeiro</title>
     <!-- Tailwind CSS para o visual -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Alpine.js para a lógica (substitui o React de forma simples) -->
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -65,7 +63,6 @@
             
             <!-- RECEITAS -->
             <div class="md:col-span-2">
-                <template x-teleport="body"></template>
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-4 border-b bg-green-50/50 border-green-100 flex justify-between items-center">
                         <div class="flex items-center gap-2 text-green-700">
@@ -200,6 +197,7 @@
     </div>
 
     <script>
+        // Definimos a função de lógica antes de carregar o Alpine.js
         function financeApp() {
             return {
                 incomes: [],
@@ -261,5 +259,7 @@
             }
         }
     </script>
+    <!-- Carregamos o Alpine.js por último para garantir que a função financeApp() já exista -->
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </body>
 </html>
