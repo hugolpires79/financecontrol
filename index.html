@@ -1,347 +1,380 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Pro - Controle Total</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        [x-cloak] { display: none !important; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .status-badge { transition: all 0.2s; cursor: pointer; }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-900 font-sans antialiased" x-data="financeApp()" x-init="init()">
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  onAuthStateChanged, 
+  signOut,
+  signInAnonymously,
+  signInWithCustomToken
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  collection 
+} from 'firebase/firestore';
+import { 
+  Plus, 
+  Trash2, 
+  TrendingUp, 
+  TrendingDown, 
+  Wallet,
+  Home,
+  ShoppingCart,
+  CreditCard,
+  CheckCircle2,
+  Circle,
+  Calendar,
+  LogOut,
+  User,
+  Lock,
+  Mail,
+  Loader2
+} from 'lucide-react';
 
-    <div class="max-w-5xl mx-auto p-4 md:p-8 space-y-6" x-cloak>
+// Configurações do Firebase vindas do ambiente
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'financas-pro-v2';
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}`;
+};
+
+const App = () => {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
+  // Estados de Dados
+  const [incomes, setIncomes] = useState([]);
+  const [fixedExpenses, setFixedExpenses] = useState([]);
+  const [variableExpenses, setVariableExpenses] = useState([]);
+  const [creditCardExpenses, setCreditCardExpenses] = useState([]);
+
+  // 1. Inicialização da Autenticação (REGRA 3)
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        }
+      } catch (err) {
+        console.error("Auth init error", err);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Escuta de Dados em Tempo Real (REGRA 1 e 2)
+  useEffect(() => {
+    if (!user) return;
+
+    const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'financeData');
+    
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setIncomes(data.incomes || []);
+        setFixedExpenses(data.fixedExpenses || []);
+        setVariableExpenses(data.variableExpenses || []);
+        setCreditCardExpenses(data.creditCardExpenses || []);
+      }
+    }, (error) => {
+      console.error("Erro ao buscar dados:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // 3. Sincronização de Dados para a Nuvem
+  const syncData = async (newData) => {
+    if (!user) return;
+    try {
+      const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'financeData');
+      await setDoc(userDocRef, {
+        incomes: newData.incomes ?? incomes,
+        fixedExpenses: newData.fixedExpenses ?? fixedExpenses,
+        variableExpenses: newData.variableExpenses ?? variableExpenses,
+        creditCardExpenses: newData.creditCardExpenses ?? creditCardExpenses,
+        lastUpdate: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Erro ao sincronizar:", err);
+    }
+  };
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    try {
+      if (isRegistering) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (err) {
+      alert("Erro na autenticação: " + err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => signOut(auth);
+
+  // Cálculos
+  const allExpenses = [...fixedExpenses, ...variableExpenses, ...creditCardExpenses];
+  const totalIncome = incomes.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalExpenses = allExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalPaid = allExpenses.filter(item => item.paid).reduce((acc, curr) => acc + curr.amount, 0);
+  const balance = totalIncome - totalExpenses;
+
+  // Renderização da Tela de Login
+  if (authLoading && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-200 p-8">
+          <div className="text-center mb-8">
+            <div className="inline-flex bg-blue-600 p-4 rounded-2xl text-white mb-4">
+              <Wallet className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 italic uppercase">Finanças Pro</h2>
+            <p className="text-slate-500 text-sm">{isRegistering ? 'Crie sua conta na nuvem' : 'Acesse seus dados de qualquer lugar'}</p>
+          </div>
+
+          <form onSubmit={handleAuth} className="space-y-4">
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+              <input 
+                type="email" placeholder="E-mail" required value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              />
+            </div>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+              <input 
+                type="password" placeholder="Senha" required value={password} onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              />
+            </div>
+            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">
+              {isRegistering ? 'Cadastrar' : 'Entrar'}
+            </button>
+          </form>
+
+          <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-6 text-sm font-bold text-blue-600 hover:underline">
+            {isRegistering ? 'Já tem conta? Faça login' : 'Não tem conta? Registre-se grátis'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Componente de Tabela Reutilizável com Sync
+  const DataTable = ({ title, icon: Icon, items, setItems, theme, isIncome = false }) => {
+    const [newDesc, setNewDesc] = useState('');
+    const [newAmount, setNewAmount] = useState('');
+    const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
+
+    const handleAdd = async (e) => {
+      e.preventDefault();
+      if (!newDesc || !newAmount || !newDate) return;
+      const newItem = { id: Date.now(), description: newDesc, amount: parseFloat(newAmount), date: newDate, paid: isIncome };
+      const updated = [...items, newItem];
+      setItems(updated);
+      
+      // Mapeia o estado correto para o Firebase
+      const syncObj = {};
+      if (title.includes("Receitas")) syncObj.incomes = updated;
+      else if (title.includes("Fixas")) syncObj.fixedExpenses = updated;
+      else if (title.includes("Variáveis")) syncObj.variableExpenses = updated;
+      else syncObj.creditCardExpenses = updated;
+      
+      await syncData(syncObj);
+      setNewDesc(''); setNewAmount('');
+    };
+
+    const handleDelete = async (id) => {
+      const updated = items.filter(item => item.id !== id);
+      setItems(updated);
+      const syncObj = {};
+      if (title.includes("Receitas")) syncObj.incomes = updated;
+      else if (title.includes("Fixas")) syncObj.fixedExpenses = updated;
+      else if (title.includes("Variáveis")) syncObj.variableExpenses = updated;
+      else syncObj.creditCardExpenses = updated;
+      await syncData(syncObj);
+    };
+
+    const togglePaid = async (id) => {
+      const updated = items.map(item => item.id === id ? { ...item, paid: !item.paid } : item);
+      setItems(updated);
+      const syncObj = {};
+      if (title.includes("Receitas")) syncObj.incomes = updated;
+      else if (title.includes("Fixas")) syncObj.fixedExpenses = updated;
+      else if (title.includes("Variáveis")) syncObj.variableExpenses = updated;
+      else syncObj.creditCardExpenses = updated;
+      await syncData(syncObj);
+    };
+
+    const sortedItems = [...items].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const total = items.reduce((acc, curr) => acc + curr.amount, 0);
+
+    const themeColors = {
+      green: 'text-green-600 bg-green-50/50 border-green-100',
+      red: 'text-red-600 bg-red-50/50 border-red-100',
+      blue: 'text-blue-600 bg-blue-50/50 border-blue-100',
+      orange: 'text-orange-600 bg-orange-50/50 border-orange-100',
+    };
+
+    const btnColors = {
+      green: 'bg-green-600 hover:bg-green-700',
+      red: 'bg-red-600 hover:bg-red-700',
+      blue: 'bg-blue-600 hover:bg-blue-700',
+      orange: 'bg-orange-600 hover:bg-orange-700',
+    };
+
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+        <div className={`p-4 border-b flex items-center justify-between ${themeColors[theme]}`}>
+          <div className="flex items-center gap-2">
+            <Icon className="w-5 h-5" />
+            <h3 className="font-bold uppercase tracking-wider text-xs">{title}</h3>
+          </div>
+          <span className="font-black">{formatCurrency(total)}</span>
+        </div>
         
-        <!-- CABEÇALHO -->
-        <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-            <div class="flex items-center gap-3">
-                <div class="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg shadow-indigo-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
-                </div>
-                <div>
-                    <h1 class="text-2xl font-black text-slate-800 tracking-tight italic">FINANÇAS PRO</h1>
-                    <div class="text-indigo-600 font-bold text-sm flex items-center gap-2">
-                        <span class="relative flex h-2 w-2">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+        <div className="p-4 flex-1 flex flex-col">
+          <div className="flex-1 overflow-y-auto mb-4 min-h-[150px] max-h-[400px] pr-2">
+            {sortedItems.length === 0 ? (
+              <div className="text-center text-slate-400 py-10 text-xs italic">Nenhum registro.</div>
+            ) : (
+              <ul className="space-y-2">
+                {sortedItems.map((item) => (
+                  <li key={item.id} className={`flex justify-between items-center p-3 rounded-xl border ${item.paid ? 'opacity-50 grayscale bg-slate-50' : 'bg-slate-50 border-transparent hover:border-slate-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => togglePaid(item.id)} className={item.paid ? 'text-green-500' : 'text-slate-300'}>
+                        {item.paid ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+                      </button>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold text-indigo-500 flex items-center gap-1 uppercase">
+                          <Calendar className="w-3 h-3" /> {formatDate(item.date)}
                         </span>
-                        Status & Recorrência Ativos
+                        <span className={`text-sm font-medium ${item.paid ? 'line-through text-slate-400' : 'text-slate-700'}`}>{item.description}</span>
+                      </div>
                     </div>
-                </div>
-            </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold">{formatCurrency(item.amount)}</span>
+                      <button onClick={() => handleDelete(item.id)} className="text-slate-300 hover:text-red-500">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-            <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
-                <button @click="changeMonth(-1)" class="p-2 hover:bg-white rounded-xl transition-all text-slate-600 hover:text-indigo-600">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
-                </button>
-                <div class="px-4 font-bold text-slate-700 min-w-[160px] text-center">
-                    <span x-text="getMonthName(currentMonth)"></span> <span x-text="currentYear"></span>
-                </div>
-                <button @click="changeMonth(1)" class="p-2 hover:bg-white rounded-xl transition-all text-slate-600 hover:text-indigo-600">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
-                </button>
+          <form onSubmit={handleAdd} className="mt-auto space-y-2 pt-4 border-t border-slate-100">
+            <input type="text" placeholder="O que é?" required value={newDesc} onChange={(e) => setNewDesc(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" required value={newDate} onChange={(e) => setNewDate(e.target.value)}
+                className="px-2 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+              />
+              <input type="number" placeholder="Valor" step="0.01" required value={newAmount} onChange={(e) => setNewAmount(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+              />
             </div>
+            <button type="submit" className={`w-full py-2.5 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm ${btnColors[theme]}`}>
+              <Plus className="w-4 h-4" /> ADICIONAR
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-lg shadow-blue-100">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 italic uppercase leading-none">Finanças Pro</h1>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{user.email}</span>
+            </div>
+          </div>
+          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all">
+            <LogOut className="w-4 h-4" /> Sair da Conta
+          </button>
         </header>
 
-        <!-- DASHBOARD RESUMO -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Receitas</p>
-                <h2 class="text-xl font-black text-green-600" x-text="formatCurrency(totals.income)"></h2>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Despesas</p>
-                <h2 class="text-xl font-black text-red-600" x-text="formatCurrency(totals.expenses)"></h2>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pago (Mês)</p>
-                <h2 class="text-xl font-black text-blue-600" x-text="formatCurrency(totals.paid)"></h2>
-            </div>
-            <div class="p-5 rounded-2xl shadow-sm border transition-colors" :class="totals.balance >= 0 ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-red-600 border-red-500 text-white'">
-                <p class="text-[10px] font-bold uppercase tracking-widest mb-1 opacity-80">Saldo</p>
-                <h2 class="text-xl font-black" x-text="formatCurrency(totals.balance)"></h2>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Receitas</p>
+            <h2 className="text-xl font-black text-green-600">{formatCurrency(totalIncome)}</h2>
+          </div>
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Despesas</p>
+            <h2 className="text-xl font-black text-red-500">{formatCurrency(totalExpenses)}</h2>
+          </div>
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 border-l-4 border-l-blue-500 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Pago</p>
+            <h2 className="text-xl font-black text-blue-600">{formatCurrency(totalPaid)}</h2>
+          </div>
+          <div className={`p-5 rounded-3xl shadow-lg shadow-slate-100 ${balance >= 0 ? 'bg-slate-900 text-white' : 'bg-red-700 text-white'}`}>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-60">Saldo em Conta</p>
+            <h2 className="text-xl font-black">{formatCurrency(balance)}</h2>
+          </div>
         </div>
 
-        <!-- FORMULÁRIO -->
-        <section class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                Novo Lançamento
-            </h3>
-            <form @submit.prevent="saveEntry()" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                <div class="lg:col-span-2">
-                    <input type="text" x-model="form.description" placeholder="Ex: Internet, Aluguel..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div>
-                    <input type="number" step="0.01" x-model="form.amount" placeholder="Valor R$" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div>
-                    <select x-model="form.category" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="income">Receita</option>
-                        <option value="fixed">Conta Fixa (Recorrente)</option>
-                        <option value="variable">Variável</option>
-                        <option value="credit">Cartão de Crédito</option>
-                    </select>
-                </div>
-                <div>
-                    <select x-model="form.installments" :disabled="form.category === 'fixed'" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                        <option value="1">À vista</option>
-                        <template x-for="i in 23">
-                            <option :value="i+1" x-text="(i+1) + ' Parcelas'"></option>
-                        </template>
-                    </select>
-                </div>
-                <button type="submit" class="bg-indigo-600 text-white font-bold py-2.5 rounded-xl hover:bg-indigo-700 transition-colors">
-                    Lançar
-                </button>
-            </form>
-        </section>
-
-        <!-- LISTAGEM -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            <!-- RECEITAS -->
-            <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                <div class="p-4 bg-green-50 border-b border-green-100 flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-green-700 uppercase tracking-widest">Receitas</h3>
-                </div>
-                <div class="p-2 space-y-1">
-                    <template x-for="item in filteredEntries.filter(e => e.category === 'income')" :key="item.id">
-                        <div class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl group transition-all">
-                            <div class="flex flex-col">
-                                <span class="text-sm font-bold text-slate-700" x-text="item.description"></span>
-                                <span class="text-[10px] font-bold text-slate-400 uppercase" x-text="item.category"></span>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <span class="text-sm font-black text-green-600" x-text="formatCurrency(item.amount)"></span>
-                                <button @click="toggleStatus(item)" class="status-badge p-1.5 rounded-lg" :class="getStatusClass(item.status)">
-                                    <svg x-show="item.status === 'pago'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                                    <svg x-show="item.status === 'aberto'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/></svg>
-                                </button>
-                                <button @click="deleteEntry(item)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-
-            <!-- DESPESAS -->
-            <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                <div class="p-4 bg-red-50 border-b border-red-100 flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-red-700 uppercase tracking-widest">Despesas</h3>
-                </div>
-                <div class="p-2 space-y-1">
-                    <template x-for="item in filteredEntries.filter(e => e.category !== 'income')" :key="item.id">
-                        <div class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl group transition-all">
-                            <div class="flex flex-col flex-1">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-1.5 h-1.5 rounded-full" :class="getCategoryColor(item.category)"></div>
-                                    <span class="text-sm font-bold text-slate-700" x-text="item.description"></span>
-                                </div>
-                                <div class="flex items-center gap-2 mt-0.5">
-                                    <span x-show="item.totalInstallments > 1" class="text-[9px] font-black text-indigo-500 uppercase" x-text="'Parc. ' + item.currentInstallment + '/' + item.totalInstallments"></span>
-                                    <span x-show="item.category === 'fixed'" class="text-[9px] font-black text-orange-500 uppercase">Recorrente</span>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-center gap-3">
-                                <!-- Edição de Valor -->
-                                <div @click="editValue(item)" class="cursor-pointer hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors">
-                                    <span class="text-sm font-black text-slate-900" x-text="formatCurrency(item.amount)"></span>
-                                </div>
-
-                                <!-- Status Toggle -->
-                                <button @click="toggleStatus(item)" class="status-badge p-1.5 rounded-lg shadow-sm" :title="item.status" :class="getStatusClass(item.status)">
-                                    <svg x-show="item.status === 'pago'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                                    <svg x-show="item.status === 'aberto'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/></svg>
-                                    <svg x-show="item.status === 'atrasado'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/><circle cx="12" cy="12" r="10"/></svg>
-                                </button>
-
-                                <button @click="deleteEntry(item)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="lg:col-span-2">
+            <DataTable title="Minhas Receitas" icon={TrendingUp} items={incomes} setItems={setIncomes} theme="green" isIncome={true} />
+          </div>
+          <DataTable title="Despesas Fixas" icon={Home} items={fixedExpenses} setItems={setFixedExpenses} theme="orange" />
+          <DataTable title="Despesas Variáveis" icon={ShoppingCart} items={variableExpenses} setItems={setVariableExpenses} theme="red" />
+          <div className="lg:col-span-2">
+            <DataTable title="Cartão de Crédito" icon={CreditCard} items={creditCardExpenses} setItems={setCreditCardExpenses} theme="blue" />
+          </div>
         </div>
-
-        <footer class="text-center py-6">
-            <p class="text-[10px] font-bold text-slate-300 uppercase tracking-[0.3em]">Clique no valor para editar • Clique no ícone para pagar</p>
-        </footer>
+      </div>
     </div>
+  );
+};
 
-    <script>
-        function financeApp() {
-            return {
-                entries: [],
-                currentMonth: new Date().getMonth(),
-                currentYear: new Date().getFullYear(),
-                form: {
-                    description: '',
-                    amount: '',
-                    category: 'variable',
-                    installments: '1'
-                },
-
-                init() {
-                    this.entries = JSON.parse(localStorage.getItem('fin_v4_db')) || [];
-                    this.$watch('entries', val => localStorage.setItem('fin_v4_db', JSON.stringify(val)));
-                    this.checkFixedEntries();
-                },
-
-                // Lógica de Contas Fixas: Garante que existam no mês atual
-                checkFixedEntries() {
-                    const fixedTemplates = this.entries.filter(e => e.category === 'fixed' && e.isTemplate);
-                    
-                    fixedTemplates.forEach(template => {
-                        const alreadyExists = this.entries.find(e => 
-                            e.templateId === template.id && 
-                            e.month === this.currentMonth && 
-                            e.year === this.currentYear
-                        );
-
-                        if (!alreadyExists) {
-                            this.entries.push({
-                                ...template,
-                                id: Date.now() + Math.random(),
-                                isTemplate: false,
-                                templateId: template.id,
-                                month: this.currentMonth,
-                                year: this.currentYear,
-                                status: 'aberto'
-                            });
-                        }
-                    });
-                },
-
-                changeMonth(diff) {
-                    let d = new Date(this.currentYear, this.currentMonth + diff, 1);
-                    this.currentMonth = d.getMonth();
-                    this.currentYear = d.getFullYear();
-                    this.checkFixedEntries(); // Ao mudar de mês, verifica se as fixas precisam ser geradas
-                },
-
-                getMonthName(m) {
-                    return ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][m];
-                },
-
-                get filteredEntries() {
-                    return this.entries.filter(e => !e.isTemplate && e.month === this.currentMonth && e.year === this.currentYear);
-                },
-
-                get totals() {
-                    const filtered = this.filteredEntries;
-                    const inc = filtered.filter(e => e.category === 'income').reduce((a, b) => a + Number(b.amount), 0);
-                    const exp = filtered.filter(e => e.category !== 'income').reduce((a, b) => a + Number(b.amount), 0);
-                    const paid = filtered.filter(e => e.status === 'pago' && e.category !== 'income').reduce((a, b) => a + Number(b.amount), 0);
-                    return { income: inc, expenses: exp, paid: paid, balance: inc - exp };
-                },
-
-                saveEntry() {
-                    if (!this.form.description || !this.form.amount) return;
-
-                    const valor = parseFloat(this.form.amount);
-                    const cat = this.form.category;
-
-                    if (cat === 'fixed') {
-                        // Cria o TEMPLATE (que não aparece na lista, serve de base)
-                        const templateId = Date.now();
-                        this.entries.push({
-                            id: templateId,
-                            isTemplate: true,
-                            description: this.form.description,
-                            amount: valor,
-                            category: 'fixed',
-                            status: 'aberto'
-                        });
-                        this.checkFixedEntries();
-                    } else {
-                        // Lógica de Parcelas ou Simples
-                        const numParc = parseInt(this.form.installments);
-                        const groupId = numParc > 1 ? Date.now() : null;
-
-                        for (let i = 0; i < numParc; i++) {
-                            let d = new Date(this.currentYear, this.currentMonth + i, 1);
-                            this.entries.push({
-                                id: Date.now() + Math.random(),
-                                description: this.form.description,
-                                amount: valor,
-                                category: cat,
-                                month: d.getMonth(),
-                                year: d.getFullYear(),
-                                status: 'aberto',
-                                groupId: groupId,
-                                currentInstallment: i + 1,
-                                totalInstallments: numParc
-                            });
-                        }
-                    }
-
-                    this.form.description = '';
-                    this.form.amount = '';
-                    this.form.installments = '1';
-                },
-
-                toggleStatus(item) {
-                    const states = ['aberto', 'pago', 'atrasado'];
-                    const nextIndex = (states.indexOf(item.status) + 1) % states.length;
-                    item.status = states[nextIndex];
-                    this.entries = [...this.entries]; // trigger reactivity
-                },
-
-                editValue(item) {
-                    const novoValor = prompt(`Editar valor de "${item.description}":`, item.amount);
-                    if (novoValor !== null && !isNaN(novoValor)) {
-                        item.amount = parseFloat(novoValor);
-                        this.entries = [...this.entries];
-                    }
-                },
-
-                deleteEntry(item) {
-                    if (item.category === 'fixed' || item.templateId) {
-                        if (confirm("Deseja excluir esta conta fixa de TODOS os meses futuros?")) {
-                            const tid = item.templateId || item.id;
-                            this.entries = this.entries.filter(e => e.id !== tid && e.templateId !== tid);
-                            return;
-                        }
-                    }
-                    
-                    if (item.groupId && confirm("Excluir todas as parcelas deste grupo?")) {
-                        this.entries = this.entries.filter(e => e.groupId !== item.groupId);
-                        return;
-                    }
-
-                    this.entries = this.entries.filter(e => e.id !== item.id);
-                },
-
-                getStatusClass(s) {
-                    return {
-                        pago: 'bg-green-100 text-green-600 border border-green-200',
-                        aberto: 'bg-slate-100 text-slate-400 border border-slate-200',
-                        atrasado: 'bg-red-100 text-red-600 border border-red-200'
-                    }[s];
-                },
-
-                getCategoryColor(c) {
-                    return { fixed: 'bg-orange-400', variable: 'bg-red-400', credit: 'bg-indigo-400' }[c];
-                },
-
-                formatCurrency(v) {
-                    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-                }
-            }
-        }
-    </script>
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-</body>
-</html>
+export default App;
