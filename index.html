@@ -36,14 +36,11 @@ import {
 } from 'lucide-react';
 
 // Configurações do Firebase vindas do ambiente
-const firebaseConfig = {
-  apiKey: "AIzaSyAtLv-AvTUVNY-N8_BhuFTk70-QAX5wZRg",
-  authDomain: "financasproapp-58031.firebaseapp.com",
-  projectId: "financasproapp-58031",
-  storageBucket: "financasproapp-58031.firebasestorage.app",
-  messagingSenderId: "1052373564984",
-  appId: "1:1052373564984:web:0b11612fc22ba1cbde70cd"
-};
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'financas-pro-v2';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
